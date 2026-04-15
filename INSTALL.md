@@ -19,7 +19,7 @@ conda activate pytorch181
 ```
 conda install pytorch=1.8 torchvision cudatoolkit=10.2 -c pytorch
 pip install matplotlib scikit-learn scikit-image opencv-python yacs joblib natsort h5py tqdm
-pip install einops gdown addict future lmdb numpy pyyaml requests scipy tb-nightly yapf lpips
+pip install einops gdown addict future lmdb numpy pyyaml requests scipy tensorboard<2.12 yapf lpips
 ```
 
 4. Install basicsr
