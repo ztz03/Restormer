@@ -1,83 +1,82 @@
-# general settings
-name: Deraining_Restormer
-model_type: ImageCleanModel
-scale: 1
-num_gpu: 8  # set num_gpu: 0 for cpu mode
-manual_seed: 100
+# 通用设置
+name: Deraining_Restormer  # 实验名称
+model_type: ImageCleanModel  # 模型类型，通常对应基础模型类
+scale: 1  # 图像缩放比例
+num_gpu: 2  # GPU 数量，若为 0 则使用 CPU 模式
+manual_seed: 100  # 随机种子，确保实验可复现
 
-# dataset and data loader settings
+# 数据集和数据加载器设置
 datasets:
   train:
-    name: TrainSet
-    type: Dataset_PairedImage
-    dataroot_gt: ./Deraining/Datasets/train/Rain13K/target
-    dataroot_lq: ./Deraining/Datasets/train/Rain13K/input
-    geometric_augs: true
+    name: TrainSet  # 训练集名称
+    type: Dataset_PairedImage  # 成对图像数据集类型
+    dataroot_gt: /home/guiyan/ztz/data/Rain13K/train/Rain13K/target  # 真值图（Ground Truth）路径
+    dataroot_lq: /home/guiyan/ztz/data/Rain13K/train/Rain13K/input   # 低质量图（Input）路径
+    geometric_augs: true  # 开启几何增强（翻转、旋转等）
 
     filename_tmpl: '{}'
     io_backend:
-      type: disk
+      type: disk  # IO 后端：从磁盘读取
 
-    # data loader
-    use_shuffle: true
-    num_worker_per_gpu: 8
-    batch_size_per_gpu: 8
+    # 数据加载器配置
+    use_shuffle: true  # 打乱数据
+    num_worker_per_gpu: 4  # 每个 GPU 的工作线程数
+    batch_size_per_gpu: 1  # 每个 GPU 的 Batch Size
 
-    ### -------------Progressive training--------------------------
-    mini_batch_sizes: [8,5,4,2,1,1]             # Batch size per gpu   
-    iters: [92000,64000,48000,36000,36000,24000]
-    gt_size: 384   # Max patch size for progressive training
-    gt_sizes: [128,160,192,256,320,384]  # Patch sizes for progressive training.
-    ### ------------------------------------------------------------
+    ### ------------- 渐进式训练（Progressive training）设置 --------------------------
+    mini_batch_sizes: [1]             # 随阶段变化的每张 GPU Batch Size
+    iters: [300000] # 每个阶段的迭代次数
+    gt_size: 128   # 渐进式训练的最大裁剪尺寸
+    gt_sizes: [128]  # 各阶段对应的裁剪尺寸（Patch sizes）
+    ### ----------------------------------------------------------------------------
 
-    ### ------- Training on single fixed-patch size 128x128---------
+    ### ------- 备选：固定 Patch Size 128x128 的训练配置 ---------
     # mini_batch_sizes: [8]   
     # iters: [300000]
     # gt_size: 128   
     # gt_sizes: [128]
     ### ------------------------------------------------------------
 
-    dataset_enlarge_ratio: 1
+    dataset_enlarge_ratio: 1  # 数据集放大倍率，1 表示按原大小
     prefetch_mode: ~
 
   val:
     name: ValSet
     type: Dataset_PairedImage
-    dataroot_gt: ./Deraining/Datasets/test/Rain100L/target
-    dataroot_lq: ./Deraining/Datasets/test/Rain100L/input
+    dataroot_gt: /home/guiyan/ztz/data/Rain13K/test/Rain100L/target
+    dataroot_lq: /home/guiyan/ztz/data/Rain13K/test/Rain100L/input
     io_backend:
       type: disk
 
-# network structures
+# 网络结构配置
 network_g:
-  type: Restormer
-  inp_channels: 3
-  out_channels: 3
-  dim: 48
-  num_blocks: [4,6,6,8]
-  num_refinement_blocks: 4
-  heads: [1,2,4,8]
-  ffn_expansion_factor: 2.66
-  bias: False
-  LayerNorm_type: WithBias
-  dual_pixel_task: False
+  type: Restormer  # 网络模型类名
+  inp_channels: 3  # 输入通道数
+  out_channels: 3  # 输出通道数
+  dim: 48          # 特征通道基础维度
+  num_blocks: [4,6,6,8]  # 各层级 Transformer 块的数量
+  num_refinement_blocks: 4  # 精细化模块的块数量
+  heads: [1,2,4,8]          # 各层多头注意力的头数
+  ffn_expansion_factor: 2.66 # FFN 展开系数
+  bias: False               # 是否使用偏置
+  LayerNorm_type: WithBias  # LayerNorm 类型
+  dual_pixel_task: False    # 是否为双像素任务
 
-
-# path
+# 路径配置
 path:
-  pretrain_network_g: ~
-  strict_load_g: true
-  resume_state: ~
+  pretrain_network_g: ~  # 预训练模型路径
+  strict_load_g: true     # 是否严格加载预训练参数
+  resume_state: ~         # 恢复训练的状态文件路径
 
-# training settings
+# 训练设置
 train:
-  total_iter: 300000
-  warmup_iter: -1 # no warm up
-  use_grad_clip: true
+  total_iter: 300000  # 总迭代次数
+  warmup_iter: -1     # 预热迭代次数（-1 表示不预热）
+  use_grad_clip: true # 是否使用梯度裁剪
 
-  # Split 300k iterations into two cycles. 
-  # 1st cycle: fixed 3e-4 LR for 92k iters. 
-  # 2nd cycle: cosine annealing (3e-4 to 1e-6) for 208k iters.
+  # 学习率调度器：余弦退火重启循环策略
+  # 第一阶段：固定 3e-4 学习率（92k iter）
+  # 第二阶段：余弦退火（3e-4 降至 1e-6，208k iter）
   scheduler:
     type: CosineAnnealingRestartCyclicLR
     periods: [92000, 208000]       
@@ -85,47 +84,48 @@ train:
     eta_mins: [0.0003,0.000001]   
   
   mixing_augs:
-    mixup: false
+    mixup: false            # 是否开启 Mixup 增强
     mixup_beta: 1.2
     use_identity: true
 
   optim_g:
-    type: AdamW
-    lr: !!float 3e-4
-    weight_decay: !!float 1e-4
+    type: AdamW            # 优化器类型
+    lr: !!float 3e-4       # 初始学习率
+    weight_decay: !!float 1e-4 # 权重衰减
     betas: [0.9, 0.999]
   
-  # losses
+  # 损失函数（Loss）
   pixel_opt:
     type: L1Loss
     loss_weight: 1
     reduction: mean
 
-# validation settings
+# 验证设置
 val:
-  window_size: 8
-  val_freq: !!float 4e3
-  save_img: false
-  rgb2bgr: true
+  window_size: 8          # 验证时的窗口大小（用于处理非 8 倍数尺寸）
+  val_freq: !!float 4e3   # 每 4000 次迭代验证一次
+  save_img: false         # 是否保存验证结果图像
+  rgb2bgr: true           # 是否将 RGB 转为 BGR
   use_image: true
-  max_minibatch: 8
+  max_minibatch: 4        # 验证时的最大 mini-batch
 
+  # 评估指标
   metrics:
-    psnr: # metric name, can be arbitrary
-      type: calculate_psnr
-      crop_border: 0
-      test_y_channel: true
+    psnr: # 指标名称
+      type: calculate_psnr # PSNR 计算函数
+      crop_border: 0       # 裁剪边界
+      test_y_channel: true # 是否在 Y 通道计算指标（学术去雨任务常用）
 
-# logging settings
+# 日志设置
 logger:
-  print_freq: 1000
-  save_checkpoint_freq: !!float 4e3
-  use_tb_logger: true
-  wandb:
+  print_freq: 1000            # 打印日志频率
+  save_checkpoint_freq: !!float 4e3 # 保存模型频率
+  use_tb_logger: true         # 开启 Tensorboard
+  wandb:                      # 开启 Weights & Biases (可选)
     project: ~
     resume_id: ~
 
-# dist training settings
+# 分布式训练设置
 dist_params:
   backend: nccl
   port: 29500

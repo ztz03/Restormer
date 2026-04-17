@@ -35,7 +35,6 @@ def create_dataset(dataset_opt):
             type (str): Dataset type.
     """
     dataset_type = dataset_opt['type']
-
     # dynamic instantiation
     for module in _dataset_modules:
         dataset_cls = getattr(module, dataset_type, None)
